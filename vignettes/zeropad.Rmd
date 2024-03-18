@@ -1,0 +1,144 @@
+---
+title: "Zero padding"
+description: "Exploring options for zero padding"
+author: Epidist Team
+output: 
+  bookdown::html_vignette2:
+    fig_caption: yes
+    code_folding: show
+pkgdown:
+  as_is: true
+csl: https://raw.githubusercontent.com/citation-style-language/styles/master/apa-numeric-superscript-brackets.csl
+link-citations: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started with Epidist}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Problem
+
+Fitting continuous-time distributions to discrete time data can be challenging when we have zero-length delays. `epidist` currently relies on padding zero-length delays with small values, which we expect to give reasonable answers when censoring is taken into account. Here, we investigate the consequences of this assumption more thoroughly.
+
+```{r load-requirements}
+library(epidist)
+library(data.table)
+library(purrr)
+library(ggplot2)
+```
+
+### Simulate the data
+
+Simulate data from an outbreak.
+
+```{r simulate-outbreak}
+outbreak <- simulate_gillespie(seed = 101)
+```
+
+Define the secondary distribution to use in the simulation. Here, we take a very short delay as a relatively challenging example:
+
+```{r secondary-dist}
+secondary_dist <- data.table(
+  meanlog = 0.5, sdlog = 0.5
+) |>
+  add_natural_scale_mean_sd()
+```
+
+Simulate an observation process during the growth phase for a secondary event using a lognormal distribution, and finally simulate observing this event.
+
+```{r simulate-data}
+obs <- outbreak |>
+  simulate_secondary(
+    meanlog = secondary_dist$meanlog[[1]],
+    sdlog = secondary_dist$sdlog[[1]]
+  ) |>
+  observe_process()
+```
+
+```{r censor}
+obs2 <- filter_obs_by_obs_time(obs, max(obs$stime_upr))
+```
+
+In this case, roughly ~3.5% of the data consists of zero:
+
+```{r}
+print(mean(obs$delay_daily==0))
+```
+
+### Models
+
+First fit a naive lognormal model after dropping zeroes.
+
+```{r}
+naive_fit_drop <- naive_delay(data = obs2, cores = 4, refresh = 0)
+```
+After padding:
+
+```{r}
+naive_fit_pad <- naive_delay(data = pad_zero(obs2), cores = 4, refresh = 0)
+```
+Adjust for date censoring after dropping zero.
+
+```{r}
+censored_fit_drop <- censoring_adjusted_delay(
+  data = drop_zero(obs2), cores = 4, refresh = 0
+)
+```
+Adjust for date censoring after padding with `1e-6`.
+
+```{r}
+censored_fit_pad1 <- censoring_adjusted_delay(
+  data = pad_zero(obs2), cores = 4, refresh = 0
+)
+```
+
+Adjust for date censoring after padding with `1e-6`.
+
+```{r}
+censored_fit_pad2 <- censoring_adjusted_delay(
+  data = pad_zero(obs2, pad=1e-6), cores = 4, refresh = 0
+)
+```
+
+### Summarise model posteriors and compare to known truth
+
+Combine models into a named list.
+
+```{r}
+models <- list(
+  "Naive drop" = naive_fit_drop,
+  "Naive pad" = naive_fit_pad,
+  "Censoring adjusted drop" = censored_fit_drop,
+  "Censoring adjusted pad 1e-3" = censored_fit_pad1,
+  "Censoring adjusted pad 1e-6" = censored_fit_pad2
+)
+```
+
+Extract and summarise lognormal posterior estimates.
+
+```{r lognormal-draws}
+draws <- models |>
+  map(extract_lognormal_draws) |>
+  rbindlist(idcol = "model")
+
+summarised_draws <- draws |>
+  draws_to_long() |>
+  summarise_draws(sf = 3)
+
+knitr::kable(summarised_draws[parameter %in% c("meanlog", "sdlog")])
+```
+
+Plot summarised posterior estimates from each model compared to the ground truth.
+
+```{r, fig.width = 9, fig.height = 4}
+draws |>
+  draws_to_long() |>
+  make_relative_to_truth(draws_to_long(secondary_dist)) |>
+  plot_relative_recovery(y = model, fill = model) +
+  facet_wrap(vars(parameter), nrow = 1, scales = "free_x") +
+  scale_fill_brewer(palette = "Dark2") +
+  guides(fill = guide_none()) +
+  labs(
+    y = "Model", x = "Relative to ground truth"
+  )
+```

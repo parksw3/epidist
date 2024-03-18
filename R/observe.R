@@ -3,20 +3,20 @@
 observe_process <- function(linelist) {
   clinelist <- linelist |>
     data.table::copy() |>
-    DT(, ptime_daily := floor(ptime)) |>
-    DT(, ptime_lwr := ptime_daily) |>
-    DT(, ptime_upr := ptime_daily + 1) |>
+    data.table:::DT(, ptime_daily := floor(ptime)) |>
+    data.table:::DT(, ptime_lwr := ptime_daily) |>
+    data.table:::DT(, ptime_upr := ptime_daily + 1) |>
     # How the second event would be recorded in the data
-    DT(, stime_daily := floor(stime)) |>
-    DT(, stime_lwr := stime_daily) |>
-    DT(, stime_upr := stime_daily + 1) |>
+    data.table:::DT(, stime_daily := floor(stime)) |>
+    data.table:::DT(, stime_lwr := stime_daily) |>
+    data.table:::DT(, stime_upr := stime_daily + 1) |>
     # How would we observe the delay distribution
     # previously: delay_daily=floor(delay)
-    DT(, delay_daily := stime_daily - ptime_daily) |>
-    DT(, delay_lwr := purrr::map_dbl(delay_daily, ~ max(0, . - 1))) |>
-    DT(, delay_upr := delay_daily + 1) |>
+    data.table:::DT(, delay_daily := stime_daily - ptime_daily) |>
+    data.table:::DT(, delay_lwr := purrr::map_dbl(delay_daily, ~ max(0, . - 1))) |>
+    data.table:::DT(, delay_upr := delay_daily + 1) |>
     # We assume observation time is the ceiling of the maximum delay
-    DT(, obs_at := stime |>
+    data.table:::DT(, obs_at := stime |>
         max() |>
         ceiling()
     )
@@ -29,14 +29,14 @@ filter_obs_by_obs_time <- function(linelist, obs_time) {
   truncated_linelist <- linelist |>
     data.table::copy() |>
     # Update observation time by when we are looking
-    DT(, obs_at := obs_time) |>
-    DT(, obs_time := obs_time - ptime) |>
+    data.table:::DT(, obs_at := obs_time) |>
+    data.table:::DT(, obs_time := obs_time - ptime) |>
     # Assuming truncation at the beginning of the censoring window
-    DT(,
+    data.table:::DT(,
       censored_obs_time := obs_at - ptime_lwr
     ) |>
-    DT(, censored := "interval") |>
-    DT(stime_upr <= obs_at)
+    data.table:::DT(, censored := "interval") |>
+    data.table:::DT(stime_upr <= obs_at)
   return(truncated_linelist)
 }
 
@@ -81,9 +81,9 @@ pad_zero <- function(data, pad = 1e-3) {
   data <- data |>
     data.table::copy() |>
     # Need upper bound to be greater than lower bound
-    DT(censored_obs_time == 0, censored_obs_time := 2 * pad) |>
-    DT(delay_lwr == 0, delay_lwr := pad) |>
-    DT(delay_daily == 0, delay_daily := pad)
+    data.table:::DT(censored_obs_time == 0, censored_obs_time := 2 * pad) |>
+    data.table:::DT(delay_lwr == 0, delay_lwr := pad) |>
+    data.table:::DT(delay_daily == 0, delay_daily := pad)
 }
 
 #' Drop zero observations as unstable in a lognormal distribution
@@ -91,5 +91,5 @@ pad_zero <- function(data, pad = 1e-3) {
 drop_zero <- function(data) {
   data <- data |>
     data.table::copy() |>
-    DT(delay_daily != 0)
+    data.table:::DT(delay_daily != 0)
 }

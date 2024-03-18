@@ -132,9 +132,9 @@ simulate_gillespie <- function(r = 0.2,
 simulate_secondary <- function(linelist, dist = rlnorm, ...) {
   obs <- linelist |>
     data.table::copy() |>
-    DT(, delay := dist(.N, ...)) |>
+    data.table:::DT(, delay := dist(.N, ...)) |>
     # When the second event actually happens
-    DT(, stime := ptime + delay)
+    data.table:::DT(, stime := ptime + delay)
   return(obs)
 }
 

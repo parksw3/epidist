@@ -124,8 +124,8 @@ sample_epinowcast_model <- function(
 #' @export
 add_natural_scale_mean_sd <- function(dt) {
   nat_dt <- dt |>
-    data.table::DT(, mean := exp(meanlog + sdlog ^ 2 / 2)) |>
-    data.table::DT(,
+    data.table:::DT(, mean := exp(meanlog + sdlog ^ 2 / 2)) |>
+    data.table:::DT(,
      sd := exp(meanlog + (1 / 2) * sdlog ^ 2) * sqrt(exp(sdlog ^ 2) - 1)
     )
   return(nat_dt[])
